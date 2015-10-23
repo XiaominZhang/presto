@@ -24,6 +24,7 @@ import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -197,7 +198,18 @@ public final class DateTimeFunctions
         DateTimeFormatter formatter = ISODateTimeFormat.dateTimeParser()
                 .withChronology(getChronology(session.getTimeZoneKey()))
                 .withOffsetParsed();
-        return packDateTimeWithZone(formatter.parseDateTime(iso8601DateTime.toStringUtf8()));
+        DateTimeZone dtz = DateTimeZone.forID(session.getTimeZoneKey().getId());
+        String dtimeStr = iso8601DateTime.toStringUtf8();
+        DateTime dtime = null;
+        try {
+            dtime = formatter.parseDateTime(dtimeStr);
+        }
+        catch (Exception e) {
+            DateTime dtimeUTC = formatter.withZone(DateTimeZone.UTC).parseDateTime(dtimeStr);
+            long millis = dtz.convertLocalToUTC(dtimeUTC.getMillis(), false);
+            dtime = new DateTime(millis, dtz);
+        }
+        return packDateTimeWithZone(dtime);
     }
 
     @ScalarFunction("from_iso8601_date")
